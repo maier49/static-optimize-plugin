@@ -136,6 +136,10 @@ registerSuite({
 		assert.isFalse(addDependencyStub.called, 'should not have been called');
 	}),
 
+	'pragma optimizing': runPluginTest({ foo: true }, 'ast-umd-import-pragma', ({ addDependencyStub, logStub }) => {
+		console.log(logStub.getCalls());
+	}),
+
 	'call in call expression': runPluginTest({ foo: true }, 'ast-has-call-in-call', ({ addDependencyStub, logStub }) => {
 		assert.isFalse(logStub.called, 'should not have been called');
 		assert.strictEqual(addDependencyStub.callCount, 1, 'should have been called once');

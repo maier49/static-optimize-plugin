@@ -12,7 +12,7 @@ For each module in a webpack build, the plugin will access the compilation, look
 the AST structure offered by webpack, making changes to the compilation.
 
 The plugin takes a map of _static_ features, where the key is the name of the feature and the value is either `true` if the feature
-is present in that context, otherwise `false`.
+is present in that context, otherwise `false`.np
 
 For example in a webpack configuration, the map of features would look like this:
 
