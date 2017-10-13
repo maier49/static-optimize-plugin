@@ -11,6 +11,8 @@ let logStub: sinon.SinonStub;
 let mockModule: MockModule;
 let mockLoaderUtils: { getOptions: sinon.SinonStub };
 let mockGetFeatures: { default: sinon.SinonStub };
+let mockRecastUtil: { composeSourceMaps: sinon.SinonStub};
+let mockRecast: { types: any, print: sinon.SinonStub, parse: sinon.SinonStub };
 
 function loadCode(name: string) {
 	return readFileSync((require as any).toUrl(`../support/fixtures/${name}.js`), 'utf8');
@@ -25,15 +27,22 @@ registerSuite({
 		mockModule.dependencies([
 			'./getFeatures',
 			'loader-utils',
+			'recast/lib/util',
+			'recast'
 		]);
 		mockGetFeatures = mockModule.getMock('./getFeatures');
 		mockLoaderUtils = mockModule.getMock('loader-utils');
+		mockRecastUtil = mockModule.getMock('recast/lib/util');
+		mockRecast = mockModule.getMock('recast');
+		mockRecast.types = recast.types;
 		loader = mockModule.getModuleUnderTest().default;
 		logStub = sandbox.stub(console, 'log');
 	},
 
 	beforeEach() {
 		mockGetFeatures.default = sandbox.stub().returns({ foo: true, bar: false });
+		mockRecast.parse.callsFake((...args: any[]) => recast.parse(...args));
+		mockRecast.print.callsFake((...args: any[]) => recast.print(...args));
 	},
 
 	afterEach() {
@@ -50,6 +59,73 @@ registerSuite({
 			features: {}
 		});
 		assert.deepEqual(recast.parse(loader(code)), recast.parse(code));
+	},
+
+	'static features'() {
+		const code = loadCode('static-has-base');
+		mockLoaderUtils.getOptions.returns({
+			features: { qat: true }
+		});
+
+		const context = {
+			callback: sandbox.stub()
+		};
+		const resultCode = loader.call(context, code);
+		const result = recast.parse(resultCode);
+		assert.deepEqual(result, recast.parse(loadCode('static-has-qat-true')));
+		assert.isFalse(mockGetFeatures.default.called, 'Should not have called getFeatures');
+		assert.strictEqual(logStub.callCount, 3, 'should have logged to console three time');
+		assert.strictEqual(logStub.secondCall.args[ 0 ], 'Dynamic features: foo, bar, baz', 'should have logged properly');
+	},
+
+	'should pass to callback if a sourcemap was provided'() {
+		const map = 'map';
+		const returnedCode = 'code';
+		mockRecast.print.reset();
+		mockRecast.print.returns({
+			map, code: returnedCode
+		});
+		mockRecastUtil.composeSourceMaps.returns('map');
+		const code = loadCode('static-has-base');
+		mockLoaderUtils.getOptions.returns({
+			features: { qat: true }
+		});
+
+		const context = {
+			callback: sandbox.stub()
+		};
+		const file = 'sourceMapFile';
+		const resultCode = loader.call(context, code, { file });
+
+		assert.isUndefined(resultCode, 'Should not have returned code');
+		assert.equal(mockRecast.print.callCount, 1, 'Should have called print once');
+
+		const modifiedAst = mockRecast.print.firstCall.args[0];
+		const modifiedCode = recast.print(modifiedAst).code;
+		const sourceMapOptions = mockRecast.print.firstCall.args[1];
+
+		assert.deepEqual(
+			recast.parse(modifiedCode),
+			recast.parse(loadCode('static-has-qat-true')),
+			'Should have passed modified ast to print'
+		);
+		assert.deepEqual(sourceMapOptions, { sourceMapName: file }, 'Should have passed source map file to print');
+
+		assert.isTrue(mockRecastUtil.composeSourceMaps.calledOnce, 'Should have called composeSourceMaps');
+		assert.deepEqual(
+			mockRecastUtil.composeSourceMaps.firstCall.args, [ { file }, map ],
+			'Should have passed the sourcemap file and the updated map returned from print to composeSourceMaps'
+		);
+
+		assert.isTrue(context.callback.calledOnce, 'Should have called provided callback');
+		assert.deepEqual(
+			context.callback.firstCall.args,
+			[ null, returnedCode, map, modifiedAst ],
+			'Should have called callback with the final code, the modified sourcemap, and the modified AST'
+		);
+		assert.isFalse(mockGetFeatures.default.called, 'Should not have called getFeatures');
+		assert.strictEqual(logStub.callCount, 3, 'should have logged to console three time');
+		assert.strictEqual(logStub.secondCall.args[ 0 ], 'Dynamic features: foo, bar, baz', 'should have logged properly');
 	},
 
 	'should delegate to getFeatures if features are passed'() {
@@ -70,73 +146,13 @@ registerSuite({
 		assert.strictEqual(logStub.secondCall.args[ 0 ], 'Dynamic features: baz, qat', 'should have logged properly');
 	},
 
-	'static features'() {
-		const code = loadCode('static-has-base');
+	'does not import has'() {
+		const code = loadCode('no-import');
 		mockLoaderUtils.getOptions.returns({
-			features: { foo: true, bar: false }
+			features: { foo: true }
 		});
-
-		const context = {
-			callback: sandbox.stub()
-		};
-		const resultCode = loader.call(context, code);
-		const result = recast.parse(resultCode);
-		assert.deepEqual(result, recast.parse(loadCode('static-has-foo-true-bar-false')));
-		assert.isFalse(mockGetFeatures.default.called, 'Should not have called getFeatures');
-		assert.strictEqual(logStub.callCount, 3, 'should have logged to console three time');
-		assert.strictEqual(logStub.secondCall.args[ 0 ], 'Dynamic features: baz, qat', 'should have logged properly');
+		assert.deepEqual(
+			recast.parse(loader(code)), recast.parse(code), 'Should not change code if has was not imported'
+		);
 	}
-	// 'static features': runPluginTest({ foo: true, bar: false }, 'ast-has', ({ addDependencyStub, logStub }) => {
-	// 	assert.strictEqual(logStub.callCount, 3, 'should have logged to console three time');
-	// 	assert.strictEqual(logStub.secondCall.args[0], 'Dynamic features: baz, qat', 'should have logged properly');
-	// 	assert.strictEqual(addDependencyStub.callCount, 3, 'Should have replaced 3 expressions');
-	// 	assert.instanceOf(addDependencyStub.firstCall.args[0], ConstDependency);
-	// 	assert.strictEqual((addDependencyStub.firstCall.args[0] as ConstDependency).expression, 'true', 'should be a const "true"');
-	// 	assert.deepEqual<any>((addDependencyStub.firstCall.args[0] as ConstDependency).range, [ 129, 152 ], 'should have proper range');
-	// 	assert.instanceOf(addDependencyStub.secondCall.args[0], ConstDependency);
-	// 	assert.strictEqual((addDependencyStub.secondCall.args[0] as ConstDependency).expression, 'true', 'should be a const "true"');
-	// 	assert.deepEqual<any>((addDependencyStub.secondCall.args[0] as ConstDependency).range, [ 175, 198 ], 'should have proper range');
-	// 	assert.instanceOf(addDependencyStub.thirdCall.args[0], ConstDependency);
-	// 	assert.strictEqual((addDependencyStub.thirdCall.args[0] as ConstDependency).expression, 'false', 'should be a const "false"');
-	// 	assert.deepEqual<any>((addDependencyStub.thirdCall.args[0] as ConstDependency).range, [ 286, 309 ], 'should have proper range');
-	// }),
-	//
-	// 'imports has - no default expressions': runPluginTest({ foo: true }, 'ast-has-no-default', ({ addDependencyStub, logStub }) => {
-	// 	assert.isFalse(logStub.called, 'should not have been called');
-	// 	assert.isFalse(addDependencyStub.called, 'should not have been called');
-	// }),
-	//
-	// 'imports has - uses a variable for flag': runPluginTest({ foo: true }, 'ast-has-call-var', ({ addDependencyStub, logStub }) => {
-	// 	assert.isFalse(logStub.called, 'should not have been called');
-	// 	assert.isFalse(addDependencyStub.called, 'should not have been called');
-	// }),
-	//
-	// 'does not import has': runPluginTest({ foo: true }, 'ast-has-no-import', ({ addDependencyStub, logStub }) => {
-	// 	assert.isFalse(logStub.called, 'should not have been called');
-	// 	assert.isFalse(addDependencyStub.called, 'should not have been called');
-	// }),
-	//
-	// 'pragma optimizing': runPluginTest({ foo: true }, 'ast-umd-import-pragma', ({ addDependencyStub, logStub }) => {
-	// 	console.log(logStub.getCalls());
-	// }),
-	//
-	// 'call in call expression': runPluginTest({ foo: true }, 'ast-has-call-in-call', ({ addDependencyStub, logStub }) => {
-	// 	assert.isFalse(logStub.called, 'should not have been called');
-	// 	assert.strictEqual(addDependencyStub.callCount, 1, 'should have been called once');
-	// 	assert.instanceOf(addDependencyStub.firstCall.args[0], ConstDependency);
-	// 	assert.strictEqual((addDependencyStub.firstCall.args[0] as ConstDependency).expression, 'true', 'should be a const "true"');
-	// 	assert.deepEqual<any>((addDependencyStub.firstCall.args[0] as ConstDependency).range, [ 127, 147 ], 'should have proper range');
-	// }),
-	//
-	// 'no module compilation'() {
-	// 	const compiler = new Compiler();
-	// 	const compilation = new Compilation();
-	// 	const plugin = new StaticOptimizePlugin({});
-	//
-	// 	plugin.apply(compiler);
-	// 	compiler.mockApply('compilation', compilation);
-	// 	const { normalModuleFactory, parser } = compilation.params;
-	// 	normalModuleFactory.mockApply('parser', parser);
-	// 	parser.mockApply('program', getAst('ast-has'));
-	// }
 });

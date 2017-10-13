@@ -6,8 +6,8 @@ require("foo");
 '!has("bar")';
 require("bar");
 require("baz");
-"has('qat')";
-require("qat");
+// has('qat')
+// elided: import 'qat'
 "!has('baz')";
 require("qat");
 
@@ -42,7 +42,7 @@ function returnArg(arg) {
 	return arg;
 }
 
-if (returnArg(!somename.default('foo')) && (somename.default('baz') || returnArg(somename.default('qat')) || somename.default('foo'))) {
+if (returnArg(!somename.default('foo')) && (somename.default('baz') || returnArg(true) || somename.default('foo'))) {
 	doX();
 	doY();
 }

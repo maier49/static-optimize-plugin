@@ -1,10 +1,24 @@
 import * as registerSuite from 'intern!object';
 import * as assert from 'intern/chai!assert';
-import { stub } from 'sinon';
+import { stub, SinonStub } from 'sinon';
 import getFeatures from '../../src/getFeatures';
 
+let logStub: SinonStub;
 registerSuite({
 	name: 'getFeatures',
+
+	before() {
+		logStub = stub(console, 'log');
+	},
+
+	afterEach() {
+		logStub.reset();
+	},
+
+	after() {
+		logStub.restore();
+	},
+
 	'no features'() {
 		assert.deepEqual(getFeatures(undefined, false), {});
 	},
@@ -64,9 +78,7 @@ registerSuite({
 	},
 
 	'not found feature set'() {
-		const logStub = stub(console, 'log');
 		const features = getFeatures([ 'ie11', 'foo' ], false);
-		logStub.restore();
 		assert.deepEqual(features, { });
 		assert.isTrue(logStub.calledOnce, 'log should have been called');
 		assert.strictEqual(logStub.lastCall.args[0], 'Cannot resolve feature set:');
