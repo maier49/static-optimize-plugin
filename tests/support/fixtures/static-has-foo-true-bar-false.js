@@ -48,6 +48,3 @@ if (true)
 	doX();
 
 var variable = false || returnArg(true);
-
-// has('foo');
-// elided: import 'elided'
