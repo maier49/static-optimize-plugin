@@ -172,6 +172,7 @@ declare module 'webpack/lib/webpack' {
 			webpack: boolean;
 
 			async(): (error?: Error | null, content?: string | Buffer, sourceMap?: any) => void;
+			callback(error?: Error | null, content?: string | Buffer, sourceMap?: any, ast?: any): void;
 			cacheable(flag?: boolean): void;
 			emitWarning(warning: string): void;
 			emitError(error: string): void;

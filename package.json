@@ -1,7 +1,7 @@
 {
-  "name": "@dojo/static-optimize-plugin",
+  "name": "@dojo/static-optimize-loader",
   "version": "0.1.1-pre",
-  "description": "A webpack plugin which allows code to be statically optimized for a particular context at bundling time.",
+  "description": "A webpack loader which allows code to be statically optimized for a particular context at bundling time.",
   "engines": {
     "npm": ">=3.0.0"
   },
@@ -11,7 +11,7 @@
     "url": "https://github.com/dojo/static-optimize-plugin/issues"
   },
   "license": "(BSD-3-Clause OR Apache-2.0)",
-  "main": "main.js",
+  "main": "index.js",
   "files": [
     "dist",
     "src",
@@ -32,6 +32,7 @@
     "@types/estree": "^0.0.37",
     "@types/glob": "~5.0.30",
     "@types/grunt": "~0.4.21",
+    "@types/loader-utils": "^1.1.0",
     "@types/mockery": "^1.4.29",
     "@types/sinon": "^2.3.3",
     "@types/source-map": "0.5.*",
@@ -44,5 +45,9 @@
     "typescript": "~2.4.2",
     "webpack": "^3.5.0",
     "webpack-sources": "~1.0.1"
+  },
+  "dependencies": {
+    "loader-utils": "^1.1.0",
+    "recast": "^0.12.7"
   }
 }
