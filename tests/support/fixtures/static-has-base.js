@@ -8,6 +8,8 @@ require("bar");
 require("baz");
 "has('qat')";
 require("qat");
+"!has('baz')";
+require("qat");
 
 function doX() {
 
@@ -16,18 +18,18 @@ function doX() {
 function doY() {
 
 }
-if (somename('foo')) {
+if (somename.default('foo')) {
 	doX();
 }
 else {
 	doY();
 }
 
-if (!somename('foo')) {
+if (!somename.default('foo')) {
 	doX();
 }
 
-if ((somename('foo') || somename('bar')) && true) {
+if ((somename.default('foo') || somename.default('bar')) && true) {
 
 }
 
@@ -35,12 +37,15 @@ function returnArg(arg) {
 	return arg;
 }
 
-if (returnArg(!somename('foo')) && (returnArg(somename('qat')) || somename('foo'))) {
+if (returnArg(!somename.default('foo')) && (somename.default('baz') || returnArg(somename.default('qat')) || somename.default('foo'))) {
 	doX();
 	doY();
 }
 
-if (somename('foo'))
+if (somename.default('foo'))
 	doX();
 
-var variable = somename('bar') || returnArg(somename('foo'));
+var variable = somename.default('bar') || returnArg(somename.default('foo'));
+
+'has("foo")';
+require('elided');

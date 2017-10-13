@@ -1,14 +1,16 @@
+// has('foo')
+// elided: import 'elided'
 const somename = require('something/has');
-// 'has("foo")'
+// has('foo')
 "use strict";
 exports.__esModule = true;
-// elided: import "foo"
-// '!has("bar")'
-// elided import "bar"
+// elided: import 'foo'
+// !has('bar')
+// elided: import 'bar'
 require("baz");
 "has('qat')";
 require("qat");
-"!has('qat')";
+"!has('baz')";
 require("qat");
 
 function doX() {
@@ -37,7 +39,7 @@ function returnArg(arg) {
 	return arg;
 }
 
-if (returnArg(!true) && (returnArg(somename('qat')) || true)) {
+if (returnArg(!true) && (somename.default('baz') || returnArg(somename.default('qat')) || true)) {
 	doX();
 	doY();
 }
@@ -47,3 +49,5 @@ if (true)
 
 var variable = false || returnArg(true);
 
+// has('foo');
+// elided: import 'elided'

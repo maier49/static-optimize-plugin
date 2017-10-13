@@ -55,12 +55,12 @@ function isVariableDeclaration(value: any): value is VariableDeclaration {
 export default function (this: LoaderContext, content: string, sourceMap?: { file: '' }) {
 	// copy features to a local scope, because `this` gets weird
 	const options = getOptions(this);
-	sourceMap = sourceMap || { file: '' };
-	const { features: featuresOption, isRunningInNode = true } = options;
-	const args = {
+	const { features: featuresOption, isRunningInNode } = options;
+	const args = (sourceMap && sourceMap.file && {
 		sourceFileName: sourceMap.file
-	};
+	}) || undefined;
 	let features: StaticHasFeatures;
+
 	if (!featuresOption || Array.isArray(featuresOption) || typeof featuresOption === 'string') {
 		features = getFeatures(featuresOption, isRunningInNode);
 	}
@@ -86,7 +86,7 @@ export default function (this: LoaderContext, content: string, sourceMap?: { fil
 						if (parent && prop && typeof index !== 'undefined') {
 							toRemove.push({ array: (parent as any)[prop], index });
 							const next = (parent as any)[prop][index + 1] || parent;
-							const comment = builders.commentLine(` ${negate}has('${flag}') `);
+							const comment = builders.commentLine(` ${negate}has('${flag}')`);
 							next.comments = [ ...((node as any).comments || []), ...(next.comments || []), comment ];
 						}
 						// // replace the pragma with a comment

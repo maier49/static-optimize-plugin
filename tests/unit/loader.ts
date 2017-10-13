@@ -3,6 +3,7 @@ import * as assert from 'intern/chai!assert';
 import * as sinon from 'sinon';
 import { readFileSync } from 'fs';
 import MockModule from '../support/MockModule';
+const recast = require('recast');
 
 let loader: (content: string, sourceMap?: { file: string }) => undefined | string;
 let sandbox: sinon.SinonSandbox;
@@ -26,10 +27,13 @@ registerSuite({
 			'loader-utils',
 		]);
 		mockGetFeatures = mockModule.getMock('./getFeatures');
-		mockGetFeatures.default = sandbox.stub().returns({ foo: true, bar: false });
-		logStub = sandbox.stub(console, 'log');
 		mockLoaderUtils = mockModule.getMock('loader-utils');
 		loader = mockModule.getModuleUnderTest().default;
+		logStub = sandbox.stub(console, 'log');
+	},
+
+	beforeEach() {
+		mockGetFeatures.default = sandbox.stub().returns({ foo: true, bar: false });
 	},
 
 	afterEach() {
@@ -45,9 +49,7 @@ registerSuite({
 		mockLoaderUtils.getOptions.returns({
 			features: {}
 		});
-		assert.strictEqual(logStub.callCount, 3, 'should have logged to console three time');
-		assert.strictEqual(logStub.secondCall.args[0], 'Dynamic features: foo, bar, baz, qat', 'should have logged properly');
-		assert.equal(loader(code), code);
+		assert.deepEqual(recast.parse(loader(code)), recast.parse(code));
 	},
 
 	'should delegate to getFeatures if features are passed'() {
@@ -59,11 +61,28 @@ registerSuite({
 		const context = {
 			callback: sandbox.stub()
 		};
-		const result = loader.call(context, code);
-		assert.equal(result, loadCode('static-has-foo-true-bar-false'));
-		assert.equal(loader.call(context, code), code);
+		const resultCode = loader.call(context, code);
+		const result = recast.parse(resultCode);
+		assert.deepEqual(result, recast.parse(loadCode('static-has-foo-true-bar-false')));
 		assert.strictEqual(mockGetFeatures.default.callCount, 1, 'should have called getFeatures');
-		assert.deepEqual(mockGetFeatures.default.firstCall.args, [ [ 'static' ], true ]);
+		assert.deepEqual(mockGetFeatures.default.firstCall.args, [ [ 'static' ], undefined ]);
+		assert.strictEqual(logStub.callCount, 3, 'should have logged to console three time');
+		assert.strictEqual(logStub.secondCall.args[ 0 ], 'Dynamic features: baz, qat', 'should have logged properly');
+	},
+
+	'static features'() {
+		const code = loadCode('static-has-base');
+		mockLoaderUtils.getOptions.returns({
+			features: { foo: true, bar: false }
+		});
+
+		const context = {
+			callback: sandbox.stub()
+		};
+		const resultCode = loader.call(context, code);
+		const result = recast.parse(resultCode);
+		assert.deepEqual(result, recast.parse(loadCode('static-has-foo-true-bar-false')));
+		assert.isFalse(mockGetFeatures.default.called, 'Should not have called getFeatures');
 		assert.strictEqual(logStub.callCount, 3, 'should have logged to console three time');
 		assert.strictEqual(logStub.secondCall.args[ 0 ], 'Dynamic features: baz, qat', 'should have logged properly');
 	}
