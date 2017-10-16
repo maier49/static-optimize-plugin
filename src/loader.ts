@@ -36,7 +36,6 @@ export default function (this: LoaderContext, content: string, sourceMap?: { fil
 	const ast = recast.parse(content, args);
 
 	let elideNextImport = false;
-	// Look for `require('*/has');` and set the variable name to `hasIdentifier`
 	let hasIdentifier: string | undefined;
 	types.visit(ast, {
 		visitExpressionStatement(path) {
@@ -80,6 +79,7 @@ export default function (this: LoaderContext, content: string, sourceMap?: { fil
 			this.traverse(path);
 		},
 
+		// Look for `require('*/has');` and set the variable name to `hasIdentifier`
 		visitVariableDeclaration(path) {
 			const { parentPath: { node: parentNode }, node: { declarations } } = path;
 			// Get all the top level variable declarations
