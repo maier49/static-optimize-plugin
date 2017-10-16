@@ -145,6 +145,10 @@ registerSuite({
 		mockLoaderUtils.getOptions.returns({
 			features: { foo: true }
 		});
-		assert.deepEqual(loader(code)!.replace(/\r\n/g, '\n'), code, 'Should not change code if has was not imported');
+		assert.deepEqual(
+			loader(code)!.replace(/\r\n/g, '\n'),
+			loadCode('no-import-foo-true'),
+			'Should not replace has calls, but should still support has pragma if has was not imported'
+		);
 	}
 });
