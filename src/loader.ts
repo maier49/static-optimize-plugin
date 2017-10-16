@@ -5,13 +5,14 @@ import {
 	Identifier,
 	Literal,
 	MemberExpression,
-	VariableDeclaration
+	VariableDeclaration,
+	Node
 } from 'estree';
 import walk from './util/walk';
 import getFeatures from './getFeatures';
 import { LoaderContext } from 'webpack/lib/webpack';
 const { getOptions } = require('loader-utils');
-const recast = require('recast');
+import * as recast from 'recast';
 const types = recast.types;
 const namedTypes = types.namedTypes;
 const builders = types.builders;
@@ -73,10 +74,11 @@ export default function (this: LoaderContext, content: string, sourceMap?: { fil
 	const dynamicFlags = new Set<string>();
 	const ast = recast.parse(content, args);
 
-	const toRemove: { array: any[], index: number }[] = [];
 	let elideNextImport = false;
+	// Look for `require('*/has');` and set the variable name to `hasIdentifier`
+	let hasIdentifier: string | undefined;
 	types.visit(ast, {
-		visitExpressionStatement(path: any) {
+		visitExpressionStatement(path) {
 			const { node, parentPath, name } = path;
 			let comment;
 			if (namedTypes.Literal.check(node.expression) && typeof node.expression.value === 'string') {
@@ -106,7 +108,7 @@ export default function (this: LoaderContext, content: string, sourceMap?: { fil
 			}
 
 			if (comment && parentPath && typeof name !== 'undefined') {
-				const next = (Array.isArray(parentPath.value) && parentPath.value[name + 1]) || parentPath.node;
+				const next = (Array.isArray(parentPath.value) && parentPath.value[Number(name) + 1]) || parentPath.node;
 				next.comments = [
 					...((node as any).comments || []), ...(next.comments || []), builders.commentLine(comment)
 				];
@@ -115,58 +117,34 @@ export default function (this: LoaderContext, content: string, sourceMap?: { fil
 			}
 
 			this.traverse(path);
-		}
-	});
+		},
 
-	toRemove.sort((a, b) => {
-		if (a.index > b.index) {
-			return -1;
-		}
-		if (a.index < b.index) {
-			return 1;
-		}
-		return 0;
-	}).forEach(({ array, index }) => {
-		array.splice(index, 1);
-	});
-
-	// we need direct access to the AST to properly figure out the has substitution
-	// Get all the top level variable declarations
-	const variableDeclarations = ast.program.body.filter((node: Node) => {
-		if (!Array.isArray(node) && isVariableDeclaration(node)) {
-			return true;
-		}
-	}) as VariableDeclaration[];
-
-	// Look for `require('*/has');` and set the variable name to `hasIdentifier`
-	let hasIdentifier: string | undefined;
-	variableDeclarations.find(({ declarations }) => {
-		let found = false;
-		declarations.forEach(({ id, init }) => {
-			if (isIdentifier(id) && isCallExpression(init)) {
-				const { callee, arguments: args } = init;
-				if (isIdentifier(callee) && callee.name === 'require' && args.length === 1) {
-					const [ arg ] = args;
-					if (isLiteral(arg) && typeof arg.value === 'string' && HAS_MID.test(arg.value)) {
-						hasIdentifier = id.name;
-						found = true;
+		visitVariableDeclaration(path) {
+			const { parentPath: { node: parentNode }, node: { declarations } } = path;
+			// Get all the top level variable declarations
+			if (ast.program === parentNode && !hasIdentifier) {
+				declarations.forEach(({ id, init })	=> {
+					if (!hasIdentifier) {
+						if (namedTypes.Identifier.check(id) && init && namedTypes.CallExpression.check(init)) {
+							const { callee, arguments: args } = init;
+							if (namedTypes.Identifier.check(callee) && callee.name === 'require' && args.length === 1) {
+								const [ arg ] = args;
+								if (namedTypes.Literal.check(arg) && typeof arg.value === 'string' && HAS_MID.test(arg.value)) {
+									hasIdentifier = id.name;
+								}
+							}
+						}
 					}
-				}
+				});
 			}
-		});
-		return found;
+			this.traverse(path);
+		}
 	});
-
-	if (!hasIdentifier) {
-		// This doesn't import `has`
-		return content;
-	}
 
 	// Now we want to walk the AST and find an expressions where the default import of `*/has` is
 	// called. Which is a CallExpression, where the callee is an object named the import from above
 	// accessing the `default` property, with one argument, which is a string literal.
-	const context = this;
-	walk(ast, {
+	walk(ast as any, {
 		enter(node, parent, prop, index) {
 			if (isCallExpression(node)) {
 				const { arguments: args, callee } = node;
