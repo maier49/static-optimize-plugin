@@ -1,4 +1,10 @@
-const somename = require('something/has');
+const { destructured } = { destructured: 1 };
+const someOtherVariable = require('something/someothermodule');
+const number = 3;
+const value = notRequire('something/has');
+const somename = require('something/has'),
+	chainedDeclarations = true;
+const afterHasRequire = true;
 // has('foo')
 "use strict";
 exports.__esModule = true;
@@ -8,6 +14,10 @@ require("bar");
 require("baz");
 // has('qat')
 require("qat");
+// has('qat')
+const foo = 'bar';
+require(foo);
+require('foo');
 // !has('baz')
 require("qat");
 
