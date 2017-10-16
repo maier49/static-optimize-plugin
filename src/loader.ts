@@ -1,12 +1,3 @@
-import {
-	ArrayExpression,
-	CallExpression,
-	ExpressionStatement,
-	Identifier,
-	Literal,
-	MemberExpression,
-	VariableDeclaration
-} from 'estree';
 import getFeatures from './getFeatures';
 import { LoaderContext } from 'webpack/lib/webpack';
 const { getOptions } = require('loader-utils');
@@ -114,33 +105,36 @@ export default function (this: LoaderContext, content: string, sourceMap?: { fil
 	// Now we want to walk the AST and find an expressions where the default import of `*/has` is
 	// called. Which is a CallExpression, where the callee is an object named the import from above
 	// accessing the `default` property, with one argument, which is a string literal.
-	types.visit(ast, {
-		visitCallExpression(path) {
-			const { node: { arguments: args, callee } } = path;
+	if (hasIdentifier) {
+		types.visit(ast, {
+			visitCallExpression(path) {
+				const { node: { arguments: args, callee } } = path;
 
-			if (
-				namedTypes.MemberExpression.check(callee) &&
-				namedTypes.Identifier.check(callee.object) &&
-				callee.object.name === hasIdentifier &&
-				namedTypes.Identifier.check(callee.property) &&
-				callee.property.name === 'default' &&
-				args.length === 1
-			) {
-				const [ arg ] = args;
-				if (namedTypes.Literal.check(arg) && typeof arg.value === 'string') {
-					// check to see if we have a flag that we want to statically swap
-					if (arg.value in features) {
-						path.replace(builders.literal(Boolean(features[arg.value])));
+				if (
+					namedTypes.MemberExpression.check(callee) &&
+					namedTypes.Identifier.check(callee.object) &&
+					callee.object.name === hasIdentifier &&
+					namedTypes.Identifier.check(callee.property) &&
+					callee.property.name === 'default' &&
+					args.length === 1
+				) {
+					const [ arg ] = args;
+					if (namedTypes.Literal.check(arg) && typeof arg.value === 'string') {
+						// check to see if we have a flag that we want to statically swap
+						if (arg.value in features) {
+							path.replace(builders.literal(Boolean(features[arg.value])));
+						}
+						else {
+							dynamicFlags.add(arg.value);
+						}
 					}
-					else {
-						dynamicFlags.add(arg.value);
-					}
+					return false;
 				}
-				return false;
+				this.traverse(path);
 			}
-			this.traverse(path);
-		}
-	});
+		});
+	}
+
 	if (dynamicFlags.size > 0) {
 		console.log();
 		console.log('Dynamic features: ' + Array.from(dynamicFlags).join(', '));
