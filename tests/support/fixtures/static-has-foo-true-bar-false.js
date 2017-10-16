@@ -8,9 +8,9 @@ exports.__esModule = true;
 // !has('bar')
 // elided: import 'bar'
 require("baz");
-"has('qat')";
+// has('qat')
 require("qat");
-"!has('baz')";
+// !has('baz')
 require("qat");
 
 somename.default.add('foo');

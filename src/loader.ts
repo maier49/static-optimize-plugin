@@ -12,6 +12,9 @@ import getFeatures from './getFeatures';
 import { LoaderContext } from 'webpack/lib/webpack';
 const { getOptions } = require('loader-utils');
 const recast = require('recast');
+const types = recast.types;
+const namedTypes = types.namedTypes;
+const builders = types.builders;
 const compose = require('recast/lib/util').composeSourceMaps;
 
 /**
@@ -69,56 +72,49 @@ export default function (this: LoaderContext, content: string, sourceMap?: { fil
 	}
 	const dynamicFlags = new Set<string>();
 	const ast = recast.parse(content, args);
-	const builders = recast.types.builders;
 
 	const toRemove: { array: any[], index: number }[] = [];
 	let elideNextImport = false;
-	walk(ast, {
-		enter(node, parent, prop, index) {
-			if (isExpressionStatement(node) && isLiteral(node.expression) && typeof node.expression.value === 'string') {
-				this.skip();
+	types.visit(ast, {
+		visitExpressionStatement(path: any) {
+			const { node, parentPath, name } = path;
+			let comment;
+			if (namedTypes.Literal.check(node.expression) && typeof node.expression.value === 'string') {
 				const hasPragma = HAS_PRAGMA.exec(node.expression.value);
 				if (hasPragma) {
 					const negate = hasPragma[1];
 					const flag = hasPragma[2];
+					comment = ` ${negate}has('${flag}')`;
 					if (flag in features) {
 						elideNextImport = negate ? !features[flag] : features[flag];
-						if (parent && prop && typeof index !== 'undefined') {
-							toRemove.push({ array: (parent as any)[prop], index });
-							const next = (parent as any)[prop][index + 1] || parent;
-							const comment = builders.commentLine(` ${negate}has('${flag}')`);
-							next.comments = [ ...((node as any).comments || []), ...(next.comments || []), comment ];
-						}
-						// // replace the pragma with a comment
-						// const dep = new ConstDependency(`/* ${negate}has('${flag}') */`, node.range);
-						// dep.loc = node.loc;
-						// parser.state.current.addDependency(dep);
 					}
 				}
 			}
-			if (
-				isExpressionStatement(node) &&
-				isCallExpression(node.expression) &&
-				isIdentifier(node.expression.callee)
-			) {
-				this.skip();
+
+			if (namedTypes.CallExpression.check(node.expression) && namedTypes.Identifier.check(node.expression.callee)) {
 				if (
 					node.expression.callee.name === 'require' &&
 					node.expression.arguments.length === 1 &&
 					elideNextImport === true
 				) {
 					const [ arg ] = node.expression.arguments;
-					if (isLiteral(arg)) {
-						if (parent && prop && typeof index !== 'undefined') {
-							toRemove.push({ array: (parent as any)[prop], index });
-							const next = (parent as any)[prop][index + 1] || parent;
-							const comment = builders.commentLine(` elided: import '${arg.value}'`);
-							next.comments = [ ...((node as any).comments || []), ...(next.comments || []), comment ];
-						}
+					if (namedTypes.Literal.check(arg)) {
+						comment = ` elided: import '${arg.value}'`;
 						elideNextImport = false;
 					}
 				}
 			}
+
+			if (comment && parentPath && typeof name !== 'undefined') {
+				const next = (Array.isArray(parentPath.value) && parentPath.value[name + 1]) || parentPath.node;
+				next.comments = [
+					...((node as any).comments || []), ...(next.comments || []), builders.commentLine(comment)
+				];
+				path.replace(null);
+				return false;
+			}
+
+			this.traverse(path);
 		}
 	});
 

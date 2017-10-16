@@ -15,7 +15,7 @@ let mockRecastUtil: { composeSourceMaps: sinon.SinonStub};
 let mockRecast: { types: any, print: sinon.SinonStub, parse: sinon.SinonStub };
 
 function loadCode(name: string) {
-	return readFileSync((require as any).toUrl(`../support/fixtures/${name}.js`), 'utf8');
+	return readFileSync((require as any).toUrl(`../support/fixtures/${name}.js`), 'utf8').replace(/\r\n/g, '\n');
 }
 
 registerSuite({
@@ -54,11 +54,11 @@ registerSuite({
 	},
 
 	'no static flags'() {
-		const code = loadCode('static-has-base');
+		const code = loadCode('static-has-no-flags');
 		mockLoaderUtils.getOptions.returns({
 			features: {}
 		});
-		assert.deepEqual(recast.parse(loader(code)), recast.parse(code));
+		assert.deepEqual(loader(code)!.replace(/\r\n/g, '\n'), code);
 	},
 
 	'static features'() {
@@ -70,9 +70,8 @@ registerSuite({
 		const context = {
 			callback: sandbox.stub()
 		};
-		const resultCode = loader.call(context, code);
-		const result = recast.parse(resultCode);
-		assert.deepEqual(result, recast.parse(loadCode('static-has-qat-true')));
+		const resultCode = loader.call(context, code).replace(/\r\n/g, '\n');
+		assert.deepEqual(resultCode, loadCode('static-has-qat-true'));
 		assert.isFalse(mockGetFeatures.default.called, 'Should not have called getFeatures');
 		assert.strictEqual(logStub.callCount, 3, 'should have logged to console three time');
 		assert.strictEqual(logStub.secondCall.args[ 0 ], 'Dynamic features: foo, bar, baz', 'should have logged properly');
@@ -101,14 +100,10 @@ registerSuite({
 		assert.equal(mockRecast.print.callCount, 1, 'Should have called print once');
 
 		const modifiedAst = mockRecast.print.firstCall.args[0];
-		const modifiedCode = recast.print(modifiedAst).code;
+		const modifiedCode = recast.print(modifiedAst).code.replace(/\r\n/g, '\n');
 		const sourceMapOptions = mockRecast.print.firstCall.args[1];
 
-		assert.deepEqual(
-			recast.parse(modifiedCode),
-			recast.parse(loadCode('static-has-qat-true')),
-			'Should have passed modified ast to print'
-		);
+		assert.deepEqual(modifiedCode, loadCode('static-has-qat-true'), 'Should have passed modified ast to print');
 		assert.deepEqual(sourceMapOptions, { sourceMapName: file }, 'Should have passed source map file to print');
 
 		assert.isTrue(mockRecastUtil.composeSourceMaps.calledOnce, 'Should have called composeSourceMaps');
@@ -137,9 +132,8 @@ registerSuite({
 		const context = {
 			callback: sandbox.stub()
 		};
-		const resultCode = loader.call(context, code);
-		const result = recast.parse(resultCode);
-		assert.deepEqual(result, recast.parse(loadCode('static-has-foo-true-bar-false')));
+		const resultCode = loader.call(context, code).replace(/\r\n/g, '\n');
+		assert.deepEqual(resultCode, loadCode('static-has-foo-true-bar-false'));
 		assert.strictEqual(mockGetFeatures.default.callCount, 1, 'should have called getFeatures');
 		assert.deepEqual(mockGetFeatures.default.firstCall.args, [ [ 'static' ], undefined ]);
 		assert.strictEqual(logStub.callCount, 3, 'should have logged to console three time');
@@ -151,8 +145,6 @@ registerSuite({
 		mockLoaderUtils.getOptions.returns({
 			features: { foo: true }
 		});
-		assert.deepEqual(
-			recast.parse(loader(code)), recast.parse(code), 'Should not change code if has was not imported'
-		);
+		assert.deepEqual(loader(code)!.replace(/\r\n/g, '\n'), code, 'Should not change code if has was not imported');
 	}
 });
