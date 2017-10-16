@@ -5,10 +5,8 @@ import {
 	Identifier,
 	Literal,
 	MemberExpression,
-	VariableDeclaration,
-	Node
+	VariableDeclaration
 } from 'estree';
-import walk from './util/walk';
 import getFeatures from './getFeatures';
 import { LoaderContext } from 'webpack/lib/webpack';
 const { getOptions } = require('loader-utils');
@@ -27,34 +25,6 @@ export interface StaticHasFeatures {
 
 const HAS_MID = /\/has$/;
 const HAS_PRAGMA = /^\s*(!?)\s*has\s*\(["']([^'"]+)['"]\)\s*$/;
-
-function isArrayExpression(value: any): value is ArrayExpression {
-	return value && value.type === 'ArrayExpression';
-}
-
-function isCallExpression(value: any): value is CallExpression {
-	return value && value.type === 'CallExpression';
-}
-
-function isExpressionStatement(value: any): value is ExpressionStatement {
-	return value && value.type === 'ExpressionStatement';
-}
-
-function isLiteral(value: any): value is Literal {
-	return value && value.type === 'Literal';
-}
-
-function isIdentifier(value: any): value is Identifier {
-	return value && value.type === 'Identifier';
-}
-
-function isMemberExpression(value: any): value is MemberExpression {
-	return value && value.type === 'MemberExpression';
-}
-
-function isVariableDeclaration(value: any): value is VariableDeclaration {
-	return value && value.type === 'VariableDeclaration';
-}
 
 export default function (this: LoaderContext, content: string, sourceMap?: { file: '' }) {
 	// copy features to a local scope, because `this` gets weird
@@ -144,39 +114,31 @@ export default function (this: LoaderContext, content: string, sourceMap?: { fil
 	// Now we want to walk the AST and find an expressions where the default import of `*/has` is
 	// called. Which is a CallExpression, where the callee is an object named the import from above
 	// accessing the `default` property, with one argument, which is a string literal.
-	walk(ast as any, {
-		enter(node, parent, prop, index) {
-			if (isCallExpression(node)) {
-				const { arguments: args, callee } = node;
-				if (
-					isMemberExpression(callee) &&
-					isIdentifier(callee.object) &&
-					callee.object.name === hasIdentifier &&
-					isIdentifier(callee.property) &&
-					callee.property.name === 'default' &&
-					args.length === 1
-				) {
-					this.skip();
-					const [ arg ] = args;
-					if (isLiteral(arg) && typeof arg.value === 'string') {
-						// check to see if we have a flag that we want to statically swap
-						if (arg.value in features) {
-							if (parent && prop) {
-								const literal = builders.literal(Boolean(features[arg.value]));
-								if (typeof index === 'number') {
-									(parent as any)[prop][index] = literal;
-								}
-								else {
-									(parent as any)[prop] = literal;
-								}
-							}
-						}
-						else {
-							dynamicFlags.add(arg.value);
-						}
+	types.visit(ast, {
+		visitCallExpression(path) {
+			const { node: { arguments: args, callee } } = path;
+
+			if (
+				namedTypes.MemberExpression.check(callee) &&
+				namedTypes.Identifier.check(callee.object) &&
+				callee.object.name === hasIdentifier &&
+				namedTypes.Identifier.check(callee.property) &&
+				callee.property.name === 'default' &&
+				args.length === 1
+			) {
+				const [ arg ] = args;
+				if (namedTypes.Literal.check(arg) && typeof arg.value === 'string') {
+					// check to see if we have a flag that we want to statically swap
+					if (arg.value in features) {
+						path.replace(builders.literal(Boolean(features[arg.value])));
+					}
+					else {
+						dynamicFlags.add(arg.value);
 					}
 				}
+				return false;
 			}
+			this.traverse(path);
 		}
 	});
 	if (dynamicFlags.size > 0) {

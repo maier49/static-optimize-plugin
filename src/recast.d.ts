@@ -6,12 +6,30 @@ declare module 'recast' {
 
 declare module 'recast/main' {
 	import {
-		BaseNode, Program, Comment, Literal, Identifier, CallExpression, ExpressionStatement, VariableDeclaration
+		BaseNode,
+		Program,
+		Comment,
+		Literal,
+		Identifier,
+		CallExpression,
+		ExpressionStatement,
+		VariableDeclaration,
+		MemberExpression
 	} from 'estree';
 
 	namespace recast {
 		interface NamedType<T> {
 			check(node: BaseNode): node is T;
+		}
+
+		interface NamedTypes {
+			// Not an exhaustive list
+			Literal: Literal;
+			Identifier: Identifier;
+			CallExpression: CallExpression;
+			MemberExpression: MemberExpression;
+			ExpressionStatement: ExpressionStatement;
+			VariableDeclaration: VariableDeclaration;
 		}
 
 		interface AST {
@@ -31,26 +49,21 @@ declare module 'recast/main' {
 		}
 
 		namespace types {
-			export const namedTypes: {
-				// Not an exhaustive list
-				Literal: NamedType<Literal>,
-				Identifier: NamedType<Identifier>;
-				CallExpression: NamedType<CallExpression>;
-			};
+			export const namedTypes: { [ type in keyof NamedTypes ]: NamedType<NamedTypes[type]> };
+
 			export const builders: {
 				commentLine(comment: string, trailing?: boolean, leading?: boolean): Comment;
 				literal(value: boolean | string | number | null | RegExp): Literal;
 			};
-			export function visit(ast: AST, visitCallbacks: Partial<{
-				// Not an exhaustive list
-				visitExpressionStatement: VisitFunction<ExpressionStatement>;
-				visitVariableDeclaration: VisitFunction<VariableDeclaration>;
-			}>): void;
+			export function visit(
+				ast: AST,
+				visitCallbacks: Partial<{
+					visitCallExpression: VisitFunction<CallExpression>;
+					visitVariableDeclaration: VisitFunction<VariableDeclaration>;
+					visitExpressionStatement: VisitFunction<ExpressionStatement>;
+				}>
+			): void;
 		}
-
-		function visit(visitCallbacks: {
-			visitExpressionStatement: string;
-		}): void;
 
 		function parse(code: string, options?: { sourceFileName: string }): AST;
 
